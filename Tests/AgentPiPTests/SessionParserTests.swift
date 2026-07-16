@@ -40,6 +40,17 @@ final class SessionParserTests: XCTestCase {
         XCTAssertEqual(event?.status, .done)
     }
 
+    func testClaudeInterruptedMarkerStopsWork() {
+        let event = claude.parse(line: Data(#"{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]}}"#.utf8))
+        XCTAssertEqual(event?.status, .cancelled)
+        XCTAssertFalse(event?.isUserMessage == true)
+    }
+
+    func testCodexTurnAbortedStopsWork() {
+        let event = codex.parse(line: Data(#"{"type":"event_msg","payload":{"type":"turn_aborted"}}"#.utf8))
+        XCTAssertEqual(event?.status, .cancelled)
+    }
+
     func testClaudeCustomTitle() {
         let event = claude.parse(line: Data(#"{"type":"custom-title","customTitle":"Product image backgrounds"}"#.utf8))
         XCTAssertEqual(event?.title, "Product image backgrounds")

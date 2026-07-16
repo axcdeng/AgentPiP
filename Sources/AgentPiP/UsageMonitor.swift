@@ -62,8 +62,9 @@ final class UsageMonitor: ObservableObject {
                 claude = newClaude
                 claudeCookieStatus = nil
             } else if sessionKey != nil {
-                claude = ProviderLimits()
-                claudeCookieStatus = "Claude could not verify this cookie. It may have expired."
+                claudeCookieStatus = claude.isEmpty
+                    ? "Claude could not verify this cookie. It may have expired."
+                    : "Claude limits could not refresh. Showing the last successful values."
             }
         }
     }

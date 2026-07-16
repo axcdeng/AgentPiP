@@ -22,8 +22,8 @@ struct AgentPanelView: View {
     private var expandedView: some View {
         VStack(spacing: 5) {
             topRail
-            ForEach(Array(monitor.visibleSessions.enumerated()), id: \.element.id) { index, session in
-                SessionRow(session: session, reservesCollapseSpace: index == 0, monitor: monitor, preferences: preferences, reduceMotion: reduceMotion)
+            ForEach(monitor.visibleSessions) { session in
+                SessionRow(session: session, monitor: monitor, preferences: preferences, reduceMotion: reduceMotion)
             }
             if let text = limitsText {
                 text
@@ -88,7 +88,7 @@ struct AgentPanelView: View {
     }
 
     private var collapsedView: some View {
-        let active = monitor.visibleSessions.filter { $0.status != .done }.count
+        let active = monitor.visibleSessions.filter { $0.status.isActive }.count
         return VStack(spacing: 0) {
             dragRail
             HStack(spacing: 8) {
@@ -182,7 +182,6 @@ struct SettingsView: View {
 
 private struct SessionRow: View {
     let session: AgentSession
-    let reservesCollapseSpace: Bool
     @ObservedObject var monitor: SessionMonitor
     @ObservedObject var preferences: Preferences
     let reduceMotion: Bool
@@ -216,7 +215,6 @@ private struct SessionRow: View {
                     }.lineLimit(1)
                 }
             }
-            .padding(.trailing, reservesCollapseSpace ? 28 : 0)
         }
         .padding(.horizontal, 9).padding(.vertical, preferences.comfortableDensity ? 11 : 8)
         .background(rowTint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -232,7 +230,7 @@ private struct SessionRow: View {
             if let value = session.activity.copyValue {
                 Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(value, forType: .string) } label: { Image(systemName: "doc.on.doc") }.help("Copy")
             }
-            if session.status == .done {
+            if !session.status.isActive {
                 Button { preferences.dismiss(session.id) } label: { Image(systemName: "xmark") }.help("Dismiss")
             } else {
                 Button { preferences.hide(session.id) } label: { Image(systemName: "eye.slash") }.help("Hide thread")
@@ -250,6 +248,7 @@ private struct SessionRow: View {
         case .needsInput: "Needs input"
         case .waitingForSubagents: "Waiting for subagents…"
         case .done: "Done"
+        case .cancelled: "Stopped"
         case .failed: "Stopped with an error"
         case .stale: "Connection lost"
         }
@@ -260,6 +259,7 @@ private struct SessionRow: View {
         case .needsInput: Color.orange.opacity(0.10)
         case .waitingForSubagents: Color.purple.opacity(0.09)
         case .done: Color.green.opacity(0.07)
+        case .cancelled: Color.gray.opacity(0.07)
         case .failed: Color.red.opacity(0.08)
         default:
             switch session.provider {

@@ -8,6 +8,14 @@ private struct ScanResult: @unchecked Sendable {
     var errors: [AgentProvider: String]
 }
 
+private struct ClaudeDesktopMetadata {
+    var title: String?
+    var model: String?
+    var openTargetID: String?
+    var isPrimaryDesktopSession: Bool
+    var lastActivityAt: Date
+}
+
 private final class SessionScanner: @unchecked Sendable {
     private var offsets: [String: UInt64] = [:]
     private var knownModificationDates: [String: Date] = [:]
@@ -24,7 +32,7 @@ private final class SessionScanner: @unchecked Sendable {
         let now = Date()
 
         let codexTitles = loadCodexTitles()
-        let claudeMetadata = loadClaudeDesktopMetadata()
+        let claudeMetadata = Self.loadClaudeDesktopMetadata()
         var snapshots: [ProviderSnapshot] = []
         for providerRoot in roots {
             let provider = providerRoot.provider, root = providerRoot.url
@@ -69,6 +77,7 @@ private final class SessionScanner: @unchecked Sendable {
                             } else if let sessionID = event.id, let metadata = claudeMetadata[sessionID] {
                                 if let title = metadata.title { event.title = title; event.hasExplicitTitle = true }
                                 if event.model == nil { event.model = metadata.model }
+                                event.openTargetID = metadata.openTargetID
                             }
                             changes.append((provider, file, event))
                         }
@@ -93,11 +102,11 @@ private final class SessionScanner: @unchecked Sendable {
         return result
     }
 
-    private func loadClaudeDesktopMetadata() -> [String: (title: String?, model: String?)] {
+    static func loadClaudeDesktopMetadata() -> [String: ClaudeDesktopMetadata] {
         let root = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Library/Application Support/Claude/claude-code-sessions")
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey], options: [.skipsHiddenFiles]) else { return [:] }
-        var result: [String: (String?, String?)] = [:]
+        var result: [String: ClaudeDesktopMetadata] = [:]
         for case let url as URL in enumerator where url.pathExtension == "json" {
             guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey]),
                   values.isRegularFile == true,
@@ -105,9 +114,37 @@ private final class SessionScanner: @unchecked Sendable {
                   let data = try? Data(contentsOf: url),
                   let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let id = value["cliSessionId"] as? String else { continue }
-            result[id] = (value["title"] as? String, value["model"] as? String)
+            let bridgeIDs = value["bridgeSessionIds"] as? [String]
+            let directID = value["sessionId"] as? String
+            let lastActivityAt = Self.dateFromMilliseconds(value["lastActivityAt"])
+                ?? values.contentModificationDate ?? .distantPast
+            let metadata = ClaudeDesktopMetadata(
+                title: value["title"] as? String,
+                model: value["model"] as? String,
+                openTargetID: directID,
+                isPrimaryDesktopSession: bridgeIDs?.isEmpty == false,
+                lastActivityAt: lastActivityAt
+            )
+            if let existing = result[id] {
+                let metadataHasTitle = metadata.title?.isEmpty == false
+                let existingHasTitle = existing.title?.isEmpty == false
+                let metadataIsBetter = (metadata.isPrimaryDesktopSession && !existing.isPrimaryDesktopSession)
+                    || (metadata.isPrimaryDesktopSession == existing.isPrimaryDesktopSession
+                        && metadataHasTitle && !existingHasTitle)
+                    || (metadata.isPrimaryDesktopSession == existing.isPrimaryDesktopSession
+                        && metadataHasTitle == existingHasTitle
+                        && metadata.lastActivityAt > existing.lastActivityAt)
+                if metadataIsBetter { result[id] = metadata }
+            } else {
+                result[id] = metadata
+            }
         }
         return result
+    }
+
+    private static func dateFromMilliseconds(_ value: Any?) -> Date? {
+        guard let milliseconds = value as? NSNumber else { return nil }
+        return Date(timeIntervalSince1970: milliseconds.doubleValue / 1_000)
     }
 }
 
@@ -137,10 +174,6 @@ final class SessionMonitor: ObservableObject {
 
     var visibleSessions: [AgentSession] {
         sessions.filter { !preferences.hiddenIDs.contains($0.id) && !preferences.dismissedIDs.contains($0.id) }
-            .sorted { lhs, rhs in
-                if lhs.status == .needsInput && rhs.status != .needsInput { return true }
-                return lhs.lastActivityAt > rhs.lastActivityAt
-            }
     }
 
     var hiddenSessions: [AgentSession] { sessions.filter { preferences.hiddenIDs.contains($0.id) } }
@@ -238,6 +271,10 @@ final class SessionMonitor: ObservableObject {
             if let title = event.title, event.hasExplicitTitle || session.title.isEmpty || looksLikeIdentifier(session.title) { session.title = title }
             if let path = event.projectPath { session.projectPath = path }
             if let model = event.model { session.model = model }
+            if let openTargetID = event.openTargetID {
+                session.openTargetID = openTargetID
+                session.canOpenExactThread = true
+            }
             if event.isUserMessage {
                 session.workingSince = date
                 preferences.dismissedIDs.remove(id)
@@ -308,14 +345,8 @@ final class SessionMonitor: ObservableObject {
             return
         }
         if session.provider == .claude {
-            var components = URLComponents()
-            components.scheme = "claude"
-            components.host = "resume"
-            components.queryItems = [URLQueryItem(name: "session", value: session.id)]
-            if let url = components.url {
-                NSWorkspace.shared.open(url)
-                return
-            }
+            _ = activateApplication(for: .claude)
+            return
         }
         if [.antigravity, .cursor].contains(session.provider), FileManager.default.fileExists(atPath: session.projectPath) {
             let scheme = session.provider == .antigravity ? "antigravity" : "cursor"
@@ -323,14 +354,21 @@ final class SessionMonitor: ObservableObject {
                 NSWorkspace.shared.open(url); return
             }
         }
-        for bundleID in session.provider.bundleIdentifiers {
-            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { continue }
-            let configuration = NSWorkspace.OpenConfiguration(); configuration.activates = true
-            NSWorkspace.shared.openApplication(at: url, configuration: configuration); return
-        }
+        if activateApplication(for: session.provider) { return }
         if session.provider == .opencode, FileManager.default.fileExists(atPath: session.projectPath) {
             NSWorkspace.shared.open([URL(fileURLWithPath: session.projectPath)], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"), configuration: NSWorkspace.OpenConfiguration())
         }
+    }
+
+    private func activateApplication(for provider: AgentProvider) -> Bool {
+        for bundleID in provider.bundleIdentifiers {
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { continue }
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+            return true
+        }
+        return false
     }
 
     private func inferredTitle(_ file: URL) -> String { file.deletingPathExtension().lastPathComponent }

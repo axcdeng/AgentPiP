@@ -12,6 +12,7 @@ struct ParsedEvent: Sendable {
     var isUserMessage = false
     var isSubagent = false
     var hasExplicitTitle = false
+    var openTargetID: String?
 }
 
 protocol ProviderEventParsing: Sendable {
@@ -49,6 +50,15 @@ struct FlexibleEventParser: ProviderEventParsing {
         )
         event.isSubagent = isSidechain
 
+        let messageText = firstString([message?["content"], payload["content"], payload["text"]]) ?? ""
+        if messageText.localizedCaseInsensitiveContains("request interrupted by user") ||
+            type.contains("turn_aborted") || type.contains("aborted") ||
+            type.contains("cancelled") || type.contains("canceled") || type.contains("interrupted") {
+            event.status = .cancelled
+            event.activity = SessionActivity.none
+            return event
+        }
+
         if type.contains("custom-title") {
             event.title = firstString([object["customTitle"], payload["customTitle"]])
             event.hasExplicitTitle = true
@@ -70,7 +80,7 @@ struct FlexibleEventParser: ProviderEventParsing {
             return event
         }
 
-        if type.contains("error") || type.contains("failed") || type.contains("interrupted") {
+        if type.contains("error") || type.contains("failed") {
             event.status = .failed
             return event
         }

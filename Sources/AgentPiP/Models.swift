@@ -27,7 +27,11 @@ enum AgentProvider: String, Codable, CaseIterable, Sendable {
 }
 
 enum SessionStatus: String, Codable, Sendable {
-    case working, needsInput, waitingForSubagents, done, failed, stale
+    case working, needsInput, waitingForSubagents, done, cancelled, failed, stale
+
+    var isActive: Bool {
+        self == .working || self == .needsInput || self == .waitingForSubagents
+    }
 }
 
 enum SessionActivity: Codable, Equatable, Sendable {
@@ -73,6 +77,7 @@ struct AgentSession: Identifiable, Codable, Equatable, Sendable {
     var childAgents: [ChildAgent]
     var canOpenExactThread: Bool
     var eventPath: String
+    var openTargetID: String? = nil
 
     var hasRunningChildren: Bool { childAgents.contains(where: \.isRunning) }
     var projectName: String { URL(fileURLWithPath: projectPath).lastPathComponent }

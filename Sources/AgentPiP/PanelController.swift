@@ -82,6 +82,9 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     func syncVisibility() {
+        panel.minSize = preferences.collapsed
+            ? NSSize(width: 210, height: 45)
+            : NSSize(width: 300, height: 76)
         if monitor.panelVisible && !monitor.visibleSessions.isEmpty {
             resizeToContent(); ensureOnScreen(); panel.orderFrontRegardless()
         } else { panel.orderOut(nil) }
