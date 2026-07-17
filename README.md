@@ -14,9 +14,10 @@
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white">
 </p>
 
-<p align="center"><a href="README.md">English</a></p>
-
-[![AgentPiP showing Claude, Codex, and Antigravity sessions](docs/assets/agentpip-screenshot.png)](https://github.com/axcdeng/AgentPiP/releases/latest)
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a><br>
+  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img src="docs/assets/agentpip-screenshot.png" width="680" alt="AgentPiP showing Claude, Codex, and Antigravity sessions"></a>
+</p>
 
 ---
 
