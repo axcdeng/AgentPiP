@@ -9,7 +9,7 @@
 <p align="center">无需离开当前工作，即可随时掌握每个编程智能体的状态。</p>
 
 <p align="center">
-  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img alt="最新版本" src="https://img.shields.io/badge/release-v1.1-6F9E26?style=flat-square"></a>
+  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img alt="最新版本" src="https://img.shields.io/badge/release-v1.1.1-6F9E26?style=flat-square"></a>
   <img alt="需要 macOS 14 或更高版本" src="https://img.shields.io/badge/macOS-14%2B-111111?style=flat-square&logo=apple&logoColor=white">
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white">
 </p>
@@ -23,9 +23,9 @@
 
 ### 安装
 
-从[最新版本](https://github.com/axcdeng/AgentPiP/releases/latest)下载 `AgentPiP-1.1.dmg`，打开后将 `AgentPiP.app` 拖入“应用程序”文件夹。
+从[最新版本](https://github.com/axcdeng/AgentPiP/releases/latest)下载 `AgentPiP-1.1.1.dmg`，打开后将 `AgentPiP.app` 拖入“应用程序”文件夹。
 
-AgentPiP 1.1 目前未签名。首次打开时，macOS 可能会阻止应用运行。请打开**系统设置 → 隐私与安全性**，找到有关 AgentPiP 的提示，然后点击**仍要打开**。
+AgentPiP 1.1.1 目前未签名。首次打开时，macOS 可能会阻止应用运行。请打开**系统设置 → 隐私与安全性**，找到有关 AgentPiP 的提示，然后点击**仍要打开**。
 
 ### 功能
 

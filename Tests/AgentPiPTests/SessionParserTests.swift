@@ -119,9 +119,45 @@ final class SessionParserTests: XCTestCase {
         session.model = "gpt-5.6-luna"
         XCTAssertEqual(session.modelDisplayName, "Luna")
         session.model = "claude-sonnet-4-6"
-        XCTAssertEqual(session.modelDisplayName, "Sonnet")
+        XCTAssertEqual(session.modelDisplayName, "Sonnet 4.6")
         session.model = "claude-sonnet-5"
-        XCTAssertEqual(session.modelDisplayName, "Sonnet")
+        XCTAssertEqual(session.modelDisplayName, "Sonnet 5")
+        session.model = "claude-haiku-4-5"
+        XCTAssertEqual(session.modelDisplayName, "Haiku")
+        session.model = "gemini-3.5-flash"
+        XCTAssertEqual(session.modelDisplayName, "3.5 Flash")
+        session.model = "gemini-3-flash-preview"
+        XCTAssertEqual(session.modelDisplayName, "3 Flash")
+        session.model = "gemini-3.1-pro-preview"
+        XCTAssertEqual(session.modelDisplayName, "3.1 Pro")
+        session.model = "composer-2.5"
+        XCTAssertEqual(session.modelDisplayName, "Composer")
+        session.model = "grok-4.5"
+        XCTAssertEqual(session.modelDisplayName, "Grok 4.5")
+        session.model = "zai/glm-5.1"
+        XCTAssertEqual(session.modelDisplayName, "GLM-5.1")
+        session.model = "kimi-k2.7-code-highspeed"
+        XCTAssertEqual(session.modelDisplayName, "Kimi K2.7 Code Highspeed")
+        session.model = "kimi-k2.5"
+        XCTAssertEqual(session.modelDisplayName, "Kimi K2.5")
+        session.model = "qwen3.7-plus-2026-05-26"
+        XCTAssertEqual(session.modelDisplayName, "Qwen3.7 Plus")
+        session.model = "qwen3-coder-next"
+        XCTAssertEqual(session.modelDisplayName, "Qwen3 Coder Next")
+        session.model = "deepseek-v4-pro"
+        XCTAssertEqual(session.modelDisplayName, "DeepSeek V4 Pro")
+        session.model = "deepseek-reasoner"
+        XCTAssertEqual(session.modelDisplayName, "DeepSeek Reasoner")
+        session.model = "MiniMax-M2.7-highspeed"
+        XCTAssertEqual(session.modelDisplayName, "MiniMax M2.7 Highspeed")
+        session.model = "doubao-seed-2-0-code-260215"
+        XCTAssertEqual(session.modelDisplayName, "Doubao Seed 2.0 Code")
+        session.model = "ernie-5.0-thinking-preview"
+        XCTAssertEqual(session.modelDisplayName, "ERNIE 5.0 Thinking")
+        session.model = "hunyuan-a13b"
+        XCTAssertEqual(session.modelDisplayName, "Hunyuan A13B")
+        session.model = "muse-spark-1.1"
+        XCTAssertEqual(session.modelDisplayName, "Muse Spark 1.1")
     }
 
     func testMalformedEventIsIgnored() { XCTAssertNil(codex.parse(line: Data("nope".utf8))) }

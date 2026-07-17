@@ -9,7 +9,7 @@
 <p align="center">Keep an eye on every coding agent without leaving your work.</p>
 
 <p align="center">
-  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v1.1-6F9E26?style=flat-square"></a>
+  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v1.1.1-6F9E26?style=flat-square"></a>
   <img alt="macOS 14 or newer" src="https://img.shields.io/badge/macOS-14%2B-111111?style=flat-square&logo=apple&logoColor=white">
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white">
 </p>
@@ -23,9 +23,9 @@
 
 ### Installation
 
-Download `AgentPiP-1.1.dmg` from the [latest release](https://github.com/axcdeng/AgentPiP/releases/latest), open it, and drag `AgentPiP.app` into Applications.
+Download `AgentPiP-1.1.1.dmg` from the [latest release](https://github.com/axcdeng/AgentPiP/releases/latest), open it, and drag `AgentPiP.app` into Applications.
 
-AgentPiP 1.1 is currently unsigned. The first time you open it, macOS may block the app. Open **System Settings → Privacy & Security**, find the AgentPiP message, then click **Open Anyway**.
+AgentPiP 1.1.1 is currently unsigned. The first time you open it, macOS may block the app. Open **System Settings → Privacy & Security**, find the AgentPiP message, then click **Open Anyway**.
 
 ### What it does
 
