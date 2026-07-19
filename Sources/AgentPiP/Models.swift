@@ -61,6 +61,26 @@ struct ChildAgent: Codable, Hashable, Sendable {
     var isRunning: Bool
 }
 
+struct AgentQuestionOption: Codable, Hashable, Sendable {
+    let label: String
+    let description: String?
+}
+
+struct AgentQuestion: Codable, Hashable, Sendable {
+    let header: String
+    let prompt: String
+    let options: [AgentQuestionOption]
+    let allowsMultiple: Bool
+    let allowsOther: Bool
+}
+
+struct AgentQuestionRequest: Identifiable, Sendable {
+    let id: UUID
+    let provider: AgentProvider
+    let sessionID: String
+    let questions: [AgentQuestion]
+}
+
 struct AgentSession: Identifiable, Codable, Equatable, Sendable {
     let id: String
     var provider: AgentProvider

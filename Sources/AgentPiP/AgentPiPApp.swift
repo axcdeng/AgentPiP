@@ -17,6 +17,7 @@ enum AgentPiPMain {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferences = Preferences.shared
     private lazy var monitor = SessionMonitor(preferences: preferences)
+    private lazy var questionBridge = QuestionBridgeServer(preferences: preferences, monitor: monitor)
     private let usageMonitor = UsageMonitor()
     private var panelController: PanelController?
     private var statusItem: NSStatusItem?
@@ -26,7 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        panelController = PanelController(monitor: monitor, preferences: preferences, usageMonitor: usageMonitor) { [weak self] in
+        panelController = PanelController(monitor: monitor, preferences: preferences, usageMonitor: usageMonitor, questionBridge: questionBridge) { [weak self] in
             self?.showSettings()
         }
         applyAppearance(preferences.appearance)
@@ -34,11 +35,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Publishers.CombineLatest4(monitor.$panelVisible, monitor.$sessions, preferences.$collapsed, preferences.$hiddenIDs)
             .combineLatest(preferences.$dismissedIDs)
             .receive(on: RunLoop.main).sink { [weak self] _ in self?.panelController?.syncVisibility(); self?.rebuildMenu() }.store(in: &cancellables)
+        Publishers.CombineLatest(preferences.$displayMode, preferences.$notchExpanded)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.panelController?.syncVisibility(); self?.rebuildMenu() }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.panelController?.syncVisibility() }
+            .store(in: &cancellables)
         preferences.$appearance.removeDuplicates().sink { [weak self] appearance in self?.applyAppearance(appearance) }.store(in: &cancellables)
         Publishers.CombineLatest(usageMonitor.$claude, usageMonitor.$codex)
             .sink { [weak self] _ in self?.panelController?.syncVisibility() }.store(in: &cancellables)
+        questionBridge.$requests
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.panelController?.syncVisibility() }
+            .store(in: &cancellables)
         monitor.start()
         usageMonitor.start()
+        questionBridge.start()
+        QuestionHookInstaller.install()
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { self?.monitor.hidePanel(); return nil }
             return event
@@ -60,8 +75,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func rebuildMenu() {
         let menu = NSMenu()
-        menu.addItem(withTitle: monitor.panelVisible ? "Hide PIP" : "Show PIP", action: #selector(togglePanel), keyEquivalent: "p")
-        menu.addItem(withTitle: preferences.collapsed ? "Expand" : "Collapse", action: #selector(toggleCollapsed), keyEquivalent: "")
+        menu.addItem(withTitle: monitor.panelVisible ? "Hide AgentPiP" : "Show AgentPiP", action: #selector(togglePanel), keyEquivalent: "p")
+        let modeItem = NSMenuItem(title: "Display Mode", action: nil, keyEquivalent: "")
+        let modeMenu = NSMenu()
+        for mode in Preferences.DisplayMode.allCases {
+            let item = NSMenuItem(title: mode.label, action: #selector(setDisplayMode(_:)), keyEquivalent: "")
+            item.representedObject = mode.rawValue
+            item.state = preferences.displayMode == mode ? .on : .off
+            modeMenu.addItem(item)
+        }
+        modeItem.submenu = modeMenu
+        menu.addItem(modeItem)
+        let isCollapsed = preferences.displayMode == .notch ? !preferences.notchExpanded : preferences.collapsed
+        menu.addItem(withTitle: isCollapsed ? "Expand" : "Collapse", action: #selector(toggleCollapsed), keyEquivalent: "")
         menu.addItem(.separator())
         let pause = menu.addItem(withTitle: preferences.paused ? "Resume Monitoring" : "Pause Monitoring", action: #selector(togglePaused), keyEquivalent: "")
         pause.state = preferences.paused ? .on : .off
@@ -80,7 +106,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePanel() { monitor.togglePanel() }
-    @objc private func toggleCollapsed() { preferences.collapsed.toggle(); panelController?.syncVisibility() }
+    @objc private func toggleCollapsed() {
+        if preferences.displayMode == .notch { preferences.notchExpanded.toggle() }
+        else { preferences.collapsed.toggle() }
+        panelController?.syncVisibility()
+    }
+    @objc private func setDisplayMode(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let mode = Preferences.DisplayMode(rawValue: rawValue) else { return }
+        preferences.notchExpanded = false
+        preferences.displayMode = mode
+    }
     @objc private func togglePaused() { preferences.paused.toggle(); preferences.paused ? monitor.stop() : monitor.start(); rebuildMenu() }
     @objc private func restoreThread(_ sender: NSMenuItem) { if let id = sender.representedObject as? String { preferences.restore(id); monitor.showPanel() } }
     @objc private func restoreAll() { preferences.hiddenIDs.removeAll(); monitor.showPanel() }

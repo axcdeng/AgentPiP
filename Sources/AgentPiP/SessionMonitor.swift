@@ -19,23 +19,29 @@ private struct ClaudeDesktopMetadata {
 private final class SessionScanner: @unchecked Sendable {
     private var offsets: [String: UInt64] = [:]
     private var knownModificationDates: [String: Date] = [:]
+    private var cachedCodexTitles: [String: String] = [:]
+    private var cachedCodexTitlesModificationDate: Date?
+    private var cachedClaudeMetadata: [String: ClaudeDesktopMetadata] = [:]
+    private var lastClaudeMetadataLoad = Date.distantPast
     let roots: [ProviderRoot]
     private let structured = StructuredProviderScanner()
 
     init(roots: [ProviderRoot]) { self.roots = roots }
 
-    func scan() -> ScanResult {
+    func scan(changedPaths: Set<String>? = nil) -> ScanResult {
         let fm = FileManager.default
         var changes: [(AgentProvider, URL, ParsedEvent)] = []
         var counts: [AgentProvider: Int] = [:]
         var errors: [AgentProvider: String] = [:]
         let now = Date()
 
-        let codexTitles = loadCodexTitles()
-        let claudeMetadata = Self.loadClaudeDesktopMetadata()
+        lazy var codexTitles = loadCodexTitles()
+        lazy var claudeMetadata = loadClaudeDesktopMetadata()
         var snapshots: [ProviderSnapshot] = []
         for providerRoot in roots {
             let provider = providerRoot.provider, root = providerRoot.url
+            let relevantPaths = changedPaths?.filter { $0.hasPrefix(root.path) }
+            if changedPaths != nil, relevantPaths?.isEmpty != false { continue }
             if [.antigravity, .opencode, .cursor].contains(provider) {
                 let scanned = structured.scan(root: providerRoot)
                 snapshots.append(contentsOf: scanned.0)
@@ -44,12 +50,36 @@ private final class SessionScanner: @unchecked Sendable {
                 continue
             }
             let parser = FlexibleEventParser(provider: provider)
-            guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { continue }
-            var inspected = 0
-            for case let file as URL in enumerator {
+            let directFiles = relevantPaths?.compactMap { path -> URL? in
+                let url = URL(fileURLWithPath: path)
+                return url.pathExtension == "jsonl" ? url : nil
+            } ?? []
+            let files: [URL]
+            if let relevantPaths, !directFiles.isEmpty, directFiles.count == relevantPaths.count {
+                files = directFiles
+            } else {
+                guard let enumerator = fm.enumerator(
+                    at: root,
+                    includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                ) else { continue }
+                var discovered: [URL] = []
+                for case let file as URL in enumerator where file.pathExtension == "jsonl" {
+                    discovered.append(file)
+                    if discovered.count >= 160 { break }
+                }
+                files = discovered
+            }
+            for file in files {
                 guard file.pathExtension == "jsonl" else { continue }
                 if provider == .codex {
                     guard file.path.contains("/.codex/sessions/"), file.lastPathComponent.hasPrefix("rollout-") else { continue }
+                    // Codex also writes short-lived internal classifier/helper rollouts
+                    // beside real chats. Only user-owned chats are registered in the
+                    // session index; waiting for that registration avoids phantom cards
+                    // without relying on unstable rollout names or prompt contents.
+                    let sessionID = String(file.deletingPathExtension().lastPathComponent.suffix(36))
+                    guard codexTitles[sessionID] != nil else { continue }
                 } else {
                     guard file.path.contains("/.claude/projects/") else { continue }
                 }
@@ -58,8 +88,6 @@ private final class SessionScanner: @unchecked Sendable {
                 let isKnown = knownModificationDates[file.path] != nil
                 guard modified > now.addingTimeInterval(-1_800) || isKnown else { continue }
                 knownModificationDates[file.path] = modified
-                inspected += 1
-                guard inspected <= 160 else { break }
                 let size = UInt64(values.fileSize ?? 0)
                 var offset = offsets[file.path] ?? (size > 262_144 ? size - 262_144 : 0)
                 if size < offset { offset = 0 }
@@ -92,6 +120,8 @@ private final class SessionScanner: @unchecked Sendable {
 
     private func loadCodexTitles() -> [String: String] {
         let url = FileManager.default.homeDirectoryForCurrentUser.appending(path: ".codex/session_index.jsonl")
+        let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+        if modified == cachedCodexTitlesModificationDate { return cachedCodexTitles }
         guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return [:] }
         var result: [String: String] = [:]
         for line in text.split(separator: "\n") {
@@ -99,13 +129,21 @@ private final class SessionScanner: @unchecked Sendable {
                   let id = value["id"] as? String, let title = value["thread_name"] as? String else { continue }
             result[id] = title
         }
+        cachedCodexTitles = result
+        cachedCodexTitlesModificationDate = modified
         return result
     }
 
-    static func loadClaudeDesktopMetadata() -> [String: ClaudeDesktopMetadata] {
+    private func loadClaudeDesktopMetadata() -> [String: ClaudeDesktopMetadata] {
+        let now = Date()
+        if now.timeIntervalSince(lastClaudeMetadataLoad) < 5 { return cachedClaudeMetadata }
+        lastClaudeMetadataLoad = now
         let root = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Library/Application Support/Claude/claude-code-sessions")
-        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey], options: [.skipsHiddenFiles]) else { return [:] }
+        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey], options: [.skipsHiddenFiles]) else {
+            cachedClaudeMetadata = [:]
+            return cachedClaudeMetadata
+        }
         var result: [String: ClaudeDesktopMetadata] = [:]
         for case let url as URL in enumerator where url.pathExtension == "json" {
             guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .contentModificationDateKey]),
@@ -139,6 +177,7 @@ private final class SessionScanner: @unchecked Sendable {
                 result[id] = metadata
             }
         }
+        cachedClaudeMetadata = result
         return result
     }
 
@@ -159,6 +198,9 @@ final class SessionMonitor: ObservableObject {
     private var watchers: [DirectoryWatcher] = []
     private var watchedPaths: Set<String> = []
     private var debounce: DispatchWorkItem?
+    private var pendingScanPaths: Set<String> = []
+    private var fullScanPending = false
+    private var lastNestedWatcherRefresh = Date.distantPast
     private var manuallyHidden = false
     private let roots: [ProviderRoot] = [
         .init(provider: .codex, url: FileManager.default.homeDirectoryForCurrentUser.appending(path: ".codex"), kind: "jsonl"),
@@ -196,7 +238,7 @@ final class SessionMonitor: ObservableObject {
             } else { healthByProvider[provider] = item }
         }
         health = AgentProvider.allCases.compactMap { healthByProvider[$0] }
-        refreshNestedWatchers()
+        refreshNestedWatchers(force: true)
         scheduleScan(immediate: true)
     }
 
@@ -204,11 +246,16 @@ final class SessionMonitor: ObservableObject {
 
     private func addWatcher(path: String) throws {
         guard !watchedPaths.contains(path), watchers.count < 512 else { return }
-        let watcher = DirectoryWatcher(path: path, queue: worker) { [weak self] in self?.scheduleScan() }
+        let watcher = DirectoryWatcher(path: path, queue: worker) { [weak self] in
+            self?.scheduleScan(changedPath: path)
+        }
         try watcher.start(); watchers.append(watcher); watchedPaths.insert(path)
     }
 
-    private func refreshNestedWatchers() {
+    private func refreshNestedWatchers(force: Bool = false) {
+        let now = Date()
+        guard force || now.timeIntervalSince(lastNestedWatcherRefresh) >= 60 else { return }
+        lastNestedWatcherRefresh = now
         let fm = FileManager.default
         let preferred = roots.flatMap { entry in
             let root = entry.url
@@ -235,14 +282,27 @@ final class SessionMonitor: ObservableObject {
         }
     }
 
-    nonisolated private func scheduleScan(immediate: Bool = false) {
+    nonisolated private func scheduleScan(immediate: Bool = false, changedPath: String? = nil) {
         Task { @MainActor [weak self] in
             guard let self, !self.preferences.paused else { return }
+            if let changedPath { self.pendingScanPaths.insert(changedPath) }
+            else { self.fullScanPending = true }
             self.debounce?.cancel()
             let scanner = self.scanner
+            let scanAll = self.fullScanPending
+            let requestedPaths = self.pendingScanPaths
             let work = DispatchWorkItem { @Sendable [weak self, scanner] in
-                let result = scanner.scan()
-                Task { @MainActor [weak self] in self?.apply(changes: result.changes, snapshots: result.snapshots, counts: result.counts, errors: result.errors) }
+                let result = scanner.scan(changedPaths: scanAll ? nil : requestedPaths)
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if scanAll {
+                        self.fullScanPending = false
+                        self.pendingScanPaths.removeAll()
+                    } else {
+                        self.pendingScanPaths.subtract(requestedPaths)
+                    }
+                    self.apply(changes: result.changes, snapshots: result.snapshots, counts: result.counts, errors: result.errors)
+                }
             }
             self.debounce = work
             self.worker.asyncAfter(deadline: .now() + (immediate ? 0 : 0.18), execute: work)
@@ -336,12 +396,13 @@ final class SessionMonitor: ObservableObject {
 
     func hidePanel() { manuallyHidden = true; panelVisible = false }
     func showPanel() { manuallyHidden = false; panelVisible = !visibleSessions.isEmpty }
+    func showForQuestion() { manuallyHidden = false; panelVisible = true }
     func togglePanel() { panelVisible ? hidePanel() : showPanel() }
 
     func open(_ session: AgentSession) {
         if session.provider == .codex,
            let url = URL(string: "codex://threads/\(session.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? session.id)") {
-            NSWorkspace.shared.open(url)
+            openAndActivate(url)
             return
         }
         if session.provider == .claude {
@@ -351,12 +412,28 @@ final class SessionMonitor: ObservableObject {
         if [.antigravity, .cursor].contains(session.provider), FileManager.default.fileExists(atPath: session.projectPath) {
             let scheme = session.provider == .antigravity ? "antigravity" : "cursor"
             if let url = URL(string: "\(scheme)://file\(session.projectPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? session.projectPath)") {
-                NSWorkspace.shared.open(url); return
+                openAndActivate(url); return
             }
         }
         if activateApplication(for: session.provider) { return }
         if session.provider == .opencode, FileManager.default.fileExists(atPath: session.projectPath) {
-            NSWorkspace.shared.open([URL(fileURLWithPath: session.projectPath)], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"), configuration: NSWorkspace.OpenConfiguration())
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.open(
+                [URL(fileURLWithPath: session.projectPath)],
+                withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
+                configuration: configuration
+            ) { application, _ in
+                Task { @MainActor in self.confirmActivation(of: application) }
+            }
+        }
+    }
+
+    private func openAndActivate(_ url: URL) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.open(url, configuration: configuration) { application, _ in
+            Task { @MainActor in self.confirmActivation(of: application) }
         }
     }
 
@@ -365,10 +442,21 @@ final class SessionMonitor: ObservableObject {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { continue }
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true
-            NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { application, _ in
+                Task { @MainActor in self.confirmActivation(of: application) }
+            }
             return true
         }
         return false
+    }
+
+    private func confirmActivation(of application: NSRunningApplication?) {
+        guard let application else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            if !application.isActive {
+                application.activate(options: [.activateAllWindows])
+            }
+        }
     }
 
     private func inferredTitle(_ file: URL) -> String { file.deletingPathExtension().lastPathComponent }

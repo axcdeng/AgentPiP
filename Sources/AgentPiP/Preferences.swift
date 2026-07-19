@@ -2,6 +2,20 @@ import Foundation
 
 @MainActor
 final class Preferences: ObservableObject {
+    enum DisplayMode: String, CaseIterable, Identifiable {
+        case pip, notch
+
+        var id: Self { self }
+        var label: String { self == .pip ? "PiP" : "Notch" }
+    }
+
+    enum NotchLayout: String, CaseIterable, Identifiable {
+        case compact, detailed
+
+        var id: Self { self }
+        var label: String { rawValue.capitalized }
+    }
+
     enum Appearance: String, CaseIterable, Identifiable {
         case light, dark
 
@@ -13,6 +27,9 @@ final class Preferences: ObservableObject {
     private let defaults = UserDefaults.standard
 
     @Published var collapsed: Bool { didSet { defaults.set(collapsed, forKey: "collapsed") } }
+    @Published var displayMode: DisplayMode { didSet { defaults.set(displayMode.rawValue, forKey: "displayMode") } }
+    @Published var notchLayout: NotchLayout { didSet { defaults.set(notchLayout.rawValue, forKey: "notchLayout") } }
+    @Published var notchExpanded = false
     @Published var comfortableDensity: Bool { didSet { defaults.set(comfortableDensity, forKey: "comfortableDensity") } }
     @Published var paused: Bool { didSet { defaults.set(paused, forKey: "paused") } }
     @Published var automaticallyRevealHiddenThreads: Bool { didSet { defaults.set(automaticallyRevealHiddenThreads, forKey: "automaticallyRevealHiddenThreads") } }
@@ -24,6 +41,8 @@ final class Preferences: ObservableObject {
 
     private init() {
         collapsed = defaults.bool(forKey: "collapsed")
+        displayMode = DisplayMode(rawValue: defaults.string(forKey: "displayMode") ?? "") ?? .pip
+        notchLayout = NotchLayout(rawValue: defaults.string(forKey: "notchLayout") ?? "") ?? .detailed
         comfortableDensity = defaults.bool(forKey: "comfortableDensity")
         paused = defaults.bool(forKey: "paused")
         automaticallyRevealHiddenThreads = defaults.object(forKey: "automaticallyRevealHiddenThreads") as? Bool ?? true
