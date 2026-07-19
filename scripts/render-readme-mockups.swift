@@ -204,10 +204,10 @@ private struct MockCanvas<Notch: View>: View {
 
 private struct CollapsedCompactNotch: View {
     private let sessions = [
-        MockSession(provider: .claude, title: "Polish compact notch", model: "Sonnet 4", activity: .editing),
-        MockSession(provider: .codex, title: "Run release checks", model: "GPT-5", activity: .running),
-        MockSession(provider: .antigravity, title: "Review UI states", model: "Gemini", activity: .thinking),
-        MockSession(provider: .cursor, title: "Finished tests", model: nil, activity: .done),
+        MockSession(provider: .claude, title: "Polish compact notch", model: "Fable", activity: .editing),
+        MockSession(provider: .codex, title: "Run release checks", model: "Sol", activity: .running),
+        MockSession(provider: .antigravity, title: "Review UI states", model: "3.5 Flash", activity: .thinking),
+        MockSession(provider: .cursor, title: "Finished tests", model: "K3", activity: .done),
     ]
     private let physicalNotchWidth: CGFloat = 180
 
@@ -282,22 +282,22 @@ private struct MockCompactRow: View {
 
 private struct ExpandedCompactNotch: View {
     private let sessions = [
-        MockSession(provider: .claude, title: "Polish compact notch", model: "Sonnet 4", activity: .editing),
-        MockSession(provider: .codex, title: "Run release checks", model: "GPT-5", activity: .running),
-        MockSession(provider: .antigravity, title: "Review UI states", model: "Gemini", activity: .thinking),
-        MockSession(provider: .cursor, title: "Finished tests", model: nil, activity: .done),
+        MockSession(provider: .claude, title: "Polish compact notch", model: "Fable", activity: .editing),
+        MockSession(provider: .codex, title: "Run release checks", model: "Sol", activity: .running),
+        MockSession(provider: .antigravity, title: "Review UI states", model: "3.5 Flash", activity: .thinking),
+        MockSession(provider: .cursor, title: "Finished tests", model: "K3", activity: .done),
     ]
 
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 0) {
-                HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
                     limitGroup(provider: .claude, fiveHour: 82, weekly: 64)
-                    limitGroup(provider: .codex, fiveHour: 71, weekly: 48)
+                    weeklyLimitGroup(provider: .codex, weekly: 48)
                 }
-                .frame(width: 130, alignment: .leading)
+                .frame(width: 112.5, alignment: .leading)
 
-                Color.clear.frame(width: 180)
+                Color.clear.frame(width: 183)
 
                 HStack(spacing: 10) {
                     Text("4")
@@ -308,7 +308,7 @@ private struct ExpandedCompactNotch: View {
                     Image(systemName: "chevron.up").font(.system(size: 11, weight: .semibold))
                 }
                 .foregroundStyle(.white.opacity(0.72))
-                .frame(width: 130, alignment: .trailing)
+                .frame(width: 112.5, alignment: .trailing)
             }
             .frame(height: 34)
             .padding(.horizontal, 5)
@@ -322,7 +322,7 @@ private struct ExpandedCompactNotch: View {
         .padding(.horizontal, 31)
         .padding(.top, 8)
         .padding(.bottom, 9)
-        .frame(width: 480, height: 124, alignment: .top)
+        .frame(width: 480, height: 138, alignment: .top)
         .background(Color.black)
         .clipShape(TopAttachedNotchShape(topRadius: 19, bottomRadius: 24))
         .overlay(alignment: .top) {
@@ -333,7 +333,7 @@ private struct ExpandedCompactNotch: View {
 
     private func limitGroup(provider: MockProvider, fiveHour: Int, weekly: Int) -> some View {
         HStack(spacing: 5) {
-            MockProviderMark(provider: provider, activity: .thinking, size: 15)
+            limitProviderIcon(provider)
             HStack(spacing: 6) {
                 limitText("5H", fiveHour)
                 limitText("Wk", weekly)
@@ -341,6 +341,23 @@ private struct ExpandedCompactNotch: View {
             .font(.system(size: 9.9, weight: .semibold, design: .rounded))
         }
         .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private func weeklyLimitGroup(provider: MockProvider, weekly: Int) -> some View {
+        HStack(spacing: 5) {
+            limitProviderIcon(provider)
+            limitText("Wk", weekly)
+                .font(.system(size: 9.9, weight: .semibold, design: .rounded))
+        }
+        .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private func limitProviderIcon(_ provider: MockProvider) -> some View {
+        Image(nsImage: MockIconStore.shared.image(for: provider))
+            .resizable()
+            .scaledToFit()
+            .frame(width: 15, height: 15)
+            .clipShape(RoundedRectangle(cornerRadius: 3.6, style: .continuous))
     }
 
     private func limitText(_ label: String, _ value: Int) -> Text {
@@ -465,23 +482,23 @@ private struct OverviewMockup: View {
             )
 
             display
-                .frame(width: 1012, height: 610)
+                .frame(width: 860, height: 470)
                 .shadow(color: .black.opacity(0.28), radius: 18, y: 10)
 
             MockPiPPanel()
-                .offset(y: 45)
+                .offset(y: 55)
 
             VStack(spacing: 5) {
-                Text("Two ways to keep watch")
+                Text("Every agent, one glance away.")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.black.opacity(0.78))
                 Text("Compact notch or floating PiP")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.black.opacity(0.48))
             }
-            .offset(y: 225)
+            .offset(y: 190)
         }
-        .frame(width: 1112, height: 680)
+        .frame(width: 1112, height: 520)
     }
 
     private var display: some View {
@@ -553,7 +570,7 @@ private func renderReadmeMockups() throws {
 
     try render(
         OverviewMockup(),
-        size: CGSize(width: 1112, height: 680),
+        size: CGSize(width: 1112, height: 520),
         to: assets.appendingPathComponent("agentpip-overview.jpg")
     )
 

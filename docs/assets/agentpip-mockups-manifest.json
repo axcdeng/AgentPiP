@@ -13,12 +13,12 @@
     {
       "path": "docs/assets/agentpip-compact-expanded.jpg",
       "pixels": "2224x1120",
-      "sha256": "7766f34d58d763d291fc0696b1427d58604dee86993b91523d400061e3a61092"
+      "sha256": "a20d3fd9dfd1632e81b1e92f753825589256c8546af62affa125bfcfa08ff7e1"
     },
     {
       "path": "docs/assets/agentpip-overview.jpg",
-      "pixels": "2224x1360",
-      "sha256": "bca2de3d2a77fcba8880eed6bb250e473f54b5f02ba4d8cb67294a734bb79c8d",
+      "pixels": "2224x1040",
+      "sha256": "a638ef3896997561792d51420c7d3a69b44aa81f741f35766fe933c8db0b07a4",
       "source": "Sources/AgentPiP/PanelViews.swift"
     }
   ],
