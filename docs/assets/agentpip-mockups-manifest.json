@@ -18,8 +18,8 @@
     {
       "path": "docs/assets/agentpip-overview.jpg",
       "pixels": "2224x1360",
-      "sha256": "803b573d0d9d1a16616dce53934e3c0bcad3b62ceb1ba8beacb9409b1ae3fd7c",
-      "source": "docs/assets/agentpip-screenshot.png"
+      "sha256": "bca2de3d2a77fcba8880eed6bb250e473f54b5f02ba4d8cb67294a734bb79c8d",
+      "source": "Sources/AgentPiP/PanelViews.swift"
     }
   ],
   "content": "Generic demo sessions only"

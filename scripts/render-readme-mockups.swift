@@ -349,8 +349,109 @@ private struct ExpandedCompactNotch: View {
     }
 }
 
+private struct MockPiPRow: View {
+    let provider: MockProvider
+    let title: String
+    let model: String?
+    let status: String
+    let statusColor: Color
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(nsImage: MockIconStore.shared.image(for: provider))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 23, height: 23)
+                .clipShape(RoundedRectangle(cornerRadius: 5.5, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 12.2, weight: .semibold))
+                        .foregroundStyle(Color.black.opacity(0.86))
+                        .lineLimit(1)
+                    if let model {
+                        Text(model)
+                            .font(.system(size: 9.4, weight: .semibold))
+                            .foregroundStyle(Color.black.opacity(0.82))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.white.opacity(0.76), in: RoundedRectangle(cornerRadius: 4))
+                    }
+                    Spacer(minLength: 2)
+                }
+                Text(status)
+                    .font(.system(size: 10.7, weight: .semibold))
+                    .foregroundStyle(statusColor)
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .background(tint, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+}
+
+private struct MockPiPPanel: View {
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Spacer()
+                Capsule()
+                    .fill(Color.black.opacity(0.18))
+                    .frame(width: 28, height: 3)
+                Spacer()
+                HStack(spacing: 9) {
+                    Image(systemName: "gearshape")
+                    Image(systemName: "chevron.up")
+                }
+                .font(.system(size: 8.5, weight: .semibold))
+                .foregroundStyle(Color.black.opacity(0.48))
+            }
+            .frame(height: 12)
+
+            MockPiPRow(
+                provider: .claude,
+                title: "Refactor authentication middleware",
+                model: "Fable",
+                status: "Done",
+                statusColor: Color(red: 0.18, green: 0.70, blue: 0.39),
+                tint: Color(red: 0.82, green: 0.91, blue: 0.84).opacity(0.78)
+            )
+            MockPiPRow(
+                provider: .codex,
+                title: "Add retry tests for API client",
+                model: "Sol",
+                status: "Needs input",
+                statusColor: Color.black.opacity(0.82),
+                tint: Color(red: 0.91, green: 0.83, blue: 0.70).opacity(0.78)
+            )
+            MockPiPRow(
+                provider: .antigravity,
+                title: "Investigate flaky CI build",
+                model: "3.5 Flash",
+                status: "1m 42s  Thinking...",
+                statusColor: Color.black.opacity(0.68),
+                tint: Color(red: 0.83, green: 0.84, blue: 0.93).opacity(0.78)
+            )
+
+            Text("Claude 5h 82% Wk 64%  \\  Codex 5h 71% Wk 48%")
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.black.opacity(0.72))
+                .lineLimit(1)
+        }
+        .padding(8)
+        .frame(width: 364, height: 198)
+        .background(Color(white: 0.94))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.10), lineWidth: 0.8)
+        )
+    }
+}
+
 private struct OverviewMockup: View {
-    let pipImage: NSImage
 
     var body: some View {
         ZStack {
@@ -364,16 +465,21 @@ private struct OverviewMockup: View {
             )
 
             display
-                .frame(width: 1012, height: 590)
-                .shadow(color: .black.opacity(0.48), radius: 24, y: 14)
+                .frame(width: 1012, height: 610)
+                .shadow(color: .black.opacity(0.28), radius: 18, y: 10)
 
-            Image(nsImage: pipImage)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 560)
-                .shadow(color: .black.opacity(0.40), radius: 22, y: 14)
-                .offset(x: 178, y: 128)
+            MockPiPPanel()
+                .offset(y: 45)
 
+            VStack(spacing: 5) {
+                Text("Two ways to keep watch")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.black.opacity(0.78))
+                Text("Compact notch or floating PiP")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.black.opacity(0.48))
+            }
+            .offset(y: 225)
         }
         .frame(width: 1112, height: 680)
     }
@@ -392,26 +498,6 @@ private struct OverviewMockup: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 8) {
-                        Circle().fill(Color.red.opacity(0.74)).frame(width: 9, height: 9)
-                        Circle().fill(Color.orange.opacity(0.76)).frame(width: 9, height: 9)
-                        Circle().fill(Color.green.opacity(0.72)).frame(width: 9, height: 9)
-                    }
-                    .padding(.top, 66)
-
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.44))
-                        .frame(width: 360, height: 18)
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.30))
-                        .frame(width: 270, height: 13)
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.white.opacity(0.32))
-                        .frame(width: 420, height: 138)
-                }
-                .padding(.leading, 62)
 
                 Rectangle()
                     .fill(Color.black)
@@ -465,11 +551,8 @@ private func renderReadmeMockups() throws {
         to: assets.appendingPathComponent("agentpip-compact-expanded.jpg")
     )
 
-    guard let pipImage = NSImage(contentsOf: assets.appendingPathComponent("agentpip-screenshot.png")) else {
-        throw NSError(domain: "AgentPiPMockupRenderer", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not load the PiP mockup source"])
-    }
     try render(
-        OverviewMockup(pipImage: pipImage),
+        OverviewMockup(),
         size: CGSize(width: 1112, height: 680),
         to: assets.appendingPathComponent("agentpip-overview.jpg")
     )
