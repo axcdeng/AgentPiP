@@ -14,6 +14,12 @@
       "path": "docs/assets/agentpip-compact-expanded.jpg",
       "pixels": "2224x1120",
       "sha256": "7766f34d58d763d291fc0696b1427d58604dee86993b91523d400061e3a61092"
+    },
+    {
+      "path": "docs/assets/agentpip-overview.jpg",
+      "pixels": "2224x1360",
+      "sha256": "803b573d0d9d1a16616dce53934e3c0bcad3b62ceb1ba8beacb9409b1ae3fd7c",
+      "source": "docs/assets/agentpip-screenshot.png"
     }
   ],
   "content": "Generic demo sessions only"

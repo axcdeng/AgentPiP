@@ -349,6 +349,87 @@ private struct ExpandedCompactNotch: View {
     }
 }
 
+private struct OverviewMockup: View {
+    let pipImage: NSImage
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.055, green: 0.065, blue: 0.09),
+                    Color(red: 0.105, green: 0.115, blue: 0.15),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            display
+                .frame(width: 1012, height: 590)
+                .shadow(color: .black.opacity(0.48), radius: 24, y: 14)
+
+            Image(nsImage: pipImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 560)
+                .shadow(color: .black.opacity(0.40), radius: 22, y: 14)
+                .offset(x: 178, y: 128)
+
+        }
+        .frame(width: 1112, height: 680)
+    }
+
+    private var display: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.black)
+
+            ZStack(alignment: .top) {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.84, green: 0.89, blue: 0.98),
+                        Color(red: 0.96, green: 0.91, blue: 0.84),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 8) {
+                        Circle().fill(Color.red.opacity(0.74)).frame(width: 9, height: 9)
+                        Circle().fill(Color.orange.opacity(0.76)).frame(width: 9, height: 9)
+                        Circle().fill(Color.green.opacity(0.72)).frame(width: 9, height: 9)
+                    }
+                    .padding(.top, 66)
+
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.white.opacity(0.44))
+                        .frame(width: 360, height: 18)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.white.opacity(0.30))
+                        .frame(width: 270, height: 13)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.white.opacity(0.32))
+                        .frame(width: 420, height: 138)
+                }
+                .padding(.leading, 62)
+
+                Rectangle()
+                    .fill(Color.black)
+                    .frame(height: 16)
+
+                ExpandedCompactNotch()
+                    .padding(.top, 16)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .padding(10)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+        )
+    }
+}
+
 @MainActor
 private func render<V: View>(_ view: V, size: CGSize, to url: URL) throws {
     let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height))
@@ -384,8 +465,18 @@ private func renderReadmeMockups() throws {
         to: assets.appendingPathComponent("agentpip-compact-expanded.jpg")
     )
 
+    guard let pipImage = NSImage(contentsOf: assets.appendingPathComponent("agentpip-screenshot.png")) else {
+        throw NSError(domain: "AgentPiPMockupRenderer", code: 2, userInfo: [NSLocalizedDescriptionKey: "Could not load the PiP mockup source"])
+    }
+    try render(
+        OverviewMockup(pipImage: pipImage),
+        size: CGSize(width: 1112, height: 680),
+        to: assets.appendingPathComponent("agentpip-overview.jpg")
+    )
+
     print(assets.appendingPathComponent("agentpip-compact-collapsed.jpg").path)
     print(assets.appendingPathComponent("agentpip-compact-expanded.jpg").path)
+    print(assets.appendingPathComponent("agentpip-overview.jpg").path)
 }
 
 try await MainActor.run {

@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a><br>
-  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img src="docs/assets/agentpip-compact-expanded.jpg" width="680" alt="AgentPiP 2.0 expanded Compact notch showing active coding-agent sessions"></a>
+  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img src="docs/assets/agentpip-overview.jpg" width="680" alt="AgentPiP 2.0 showing both the Compact notch and floating PiP modes"></a>
 </p>
 
 ---
@@ -30,10 +30,6 @@ AgentPiP 2.0 is not notarized. The first time you open it, macOS may block the a
 ### Compact notch mode
 
 AgentPiP 2.0 can live directly around the MacBook notch. Compact mode shows one icon per active agent, with a terminal badge for commands and a pencil badge for file edits. Hover to expand the two-column session grid.
-
-<p align="center">
-  <img src="docs/assets/agentpip-compact-collapsed.jpg" width="680" alt="AgentPiP 2.0 collapsed Compact notch with command and edit activity badges">
-</p>
 
 ### What it does
 
