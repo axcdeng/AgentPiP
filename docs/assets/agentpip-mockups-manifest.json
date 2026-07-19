@@ -8,17 +8,17 @@
     {
       "path": "docs/assets/agentpip-compact-collapsed.jpg",
       "pixels": "2224x920",
-      "sha256": "98c7febbf34d6d93a866f24339b688603898e541a9965288ad66b8e17a0b31db"
+      "sha256": "65dcb9dcfc52ab72d9324dd805395e24994074594161edbea299e133e77edf4b"
     },
     {
       "path": "docs/assets/agentpip-compact-expanded.jpg",
       "pixels": "2224x1120",
-      "sha256": "a20d3fd9dfd1632e81b1e92f753825589256c8546af62affa125bfcfa08ff7e1"
+      "sha256": "8465f37ee564177cd21521f39856969898e0be0ccf95b0444eff07174849610b"
     },
     {
       "path": "docs/assets/agentpip-overview.jpg",
-      "pixels": "2224x1040",
-      "sha256": "a638ef3896997561792d51420c7d3a69b44aa81f741f35766fe933c8db0b07a4",
+      "pixels": "2224x1088",
+      "sha256": "dd0f9ddacb0ba9a1e5bf54b7225f5d673115ea67c927be2078a927f4c55c29b9",
       "source": "Sources/AgentPiP/PanelViews.swift"
     }
   ],

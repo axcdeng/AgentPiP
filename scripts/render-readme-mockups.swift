@@ -482,11 +482,11 @@ private struct OverviewMockup: View {
             )
 
             display
-                .frame(width: 860, height: 470)
+                .frame(width: 860, height: 494)
                 .shadow(color: .black.opacity(0.28), radius: 18, y: 10)
 
             MockPiPPanel()
-                .offset(y: 55)
+                .offset(y: 43)
 
             VStack(spacing: 5) {
                 Text("Every agent, one glance away.")
@@ -496,9 +496,9 @@ private struct OverviewMockup: View {
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.black.opacity(0.48))
             }
-            .offset(y: 190)
+            .offset(y: 186)
         }
-        .frame(width: 1112, height: 520)
+        .frame(width: 1112, height: 544)
     }
 
     private var display: some View {
@@ -570,7 +570,7 @@ private func renderReadmeMockups() throws {
 
     try render(
         OverviewMockup(),
-        size: CGSize(width: 1112, height: 520),
+        size: CGSize(width: 1112, height: 544),
         to: assets.appendingPathComponent("agentpip-overview.jpg")
     )
 
