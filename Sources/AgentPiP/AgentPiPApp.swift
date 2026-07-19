@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.panelController?.syncVisibility() }
             .store(in: &cancellables)
         monitor.start()
+        monitor.showPanel()
         usageMonitor.start()
         questionBridge.start()
         QuestionHookInstaller.install()

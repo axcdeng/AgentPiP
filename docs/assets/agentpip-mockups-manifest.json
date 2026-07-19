@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "renderer": "scripts/render-readme-mockups.swift",
+  "referenceSource": "Sources/AgentPiP/PanelViews.swift",
+  "captureMethod": "Deterministic SwiftUI render; no screen capture or desktop content",
+  "mode": "Compact",
+  "outputs": [
+    {
+      "path": "docs/assets/agentpip-compact-collapsed.jpg",
+      "pixels": "2224x920",
+      "sha256": "98c7febbf34d6d93a866f24339b688603898e541a9965288ad66b8e17a0b31db"
+    },
+    {
+      "path": "docs/assets/agentpip-compact-expanded.jpg",
+      "pixels": "2224x1120",
+      "sha256": "7766f34d58d763d291fc0696b1427d58604dee86993b91523d400061e3a61092"
+    }
+  ],
+  "content": "Generic demo sessions only"
+}

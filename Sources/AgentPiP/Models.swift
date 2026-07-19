@@ -79,6 +79,9 @@ struct AgentQuestionRequest: Identifiable, Sendable {
     let provider: AgentProvider
     let sessionID: String
     let questions: [AgentQuestion]
+    let originalToolInput: Data
+    let transcriptPath: String?
+    let toolUseID: String?
 }
 
 struct AgentSession: Identifiable, Codable, Equatable, Sendable {

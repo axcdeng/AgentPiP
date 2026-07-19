@@ -9,23 +9,31 @@
 <p align="center">Keep an eye on every coding agent without leaving your work.</p>
 
 <p align="center">
-  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v1.1.1-6F9E26?style=flat-square"></a>
+  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v2.0-6F9E26?style=flat-square"></a>
   <img alt="macOS 14 or newer" src="https://img.shields.io/badge/macOS-14%2B-111111?style=flat-square&logo=apple&logoColor=white">
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white">
 </p>
 
 <p align="center">
   <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a><br>
-  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img src="docs/assets/agentpip-screenshot.png" width="680" alt="AgentPiP showing Claude, Codex, and Antigravity sessions"></a>
+  <a href="https://github.com/axcdeng/AgentPiP/releases/latest"><img src="docs/assets/agentpip-compact-expanded.jpg" width="680" alt="AgentPiP 2.0 expanded Compact notch showing active coding-agent sessions"></a>
 </p>
 
 ---
 
 ### Installation
 
-Download `AgentPiP-1.1.1.dmg` from the [latest release](https://github.com/axcdeng/AgentPiP/releases/latest), open it, and drag `AgentPiP.app` into Applications.
+Download `AgentPiP-2.0.zip` from the [latest release](https://github.com/axcdeng/AgentPiP/releases/latest), unzip it, and move `AgentPiP.app` into Applications.
 
-AgentPiP 1.1.1 is currently unsigned. The first time you open it, macOS may block the app. Open **System Settings → Privacy & Security**, find the AgentPiP message, then click **Open Anyway**.
+AgentPiP 2.0 is not notarized. The first time you open it, macOS may block the app. Open **System Settings → Privacy & Security**, find the AgentPiP message, then click **Open Anyway**.
+
+### Compact notch mode
+
+AgentPiP 2.0 can live directly around the MacBook notch. Compact mode shows one icon per active agent, with a terminal badge for commands and a pencil badge for file edits. Hover to expand the two-column session grid.
+
+<p align="center">
+  <img src="docs/assets/agentpip-compact-collapsed.jpg" width="680" alt="AgentPiP 2.0 collapsed Compact notch with command and edit activity badges">
+</p>
 
 ### What it does
 
@@ -33,6 +41,8 @@ AgentPiP is a small, native macOS picture-in-picture monitor for active coding-a
 
 - Live **working**, **needs input**, **done**, **stopped**, and **error** states
 - Current activity such as thinking, editing, searching, and running commands
+- Compact and Detailed notch layouts, including at-a-glance edit and command badges
+- Answer supported agent questions without leaving the notch
 - One-click return to the original agent thread
 - Collapsible floating panel with light and dark appearances
 - Optional usage-limit summaries for Claude and Codex

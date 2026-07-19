@@ -20,6 +20,111 @@ struct NotchGeometry {
     }
 }
 
+struct NotchSummaryItem: Identifiable, Equatable {
+    let id: String
+    let session: AgentSession
+    var count: Int
+}
+
+enum NotchSummaryBuilder {
+    static func items(from sessions: [AgentSession], limit: Int = 4) -> [NotchSummaryItem] {
+        var items: [NotchSummaryItem] = []
+        var groupedIndices: [String: Int] = [:]
+
+        for session in sessions {
+            guard let group = groupKey(for: session) else {
+                items.append(NotchSummaryItem(id: "session:\(session.id)", session: session, count: 1))
+                continue
+            }
+
+            let key = "group:\(session.provider.rawValue):\(group)"
+            if let index = groupedIndices[key] {
+                items[index].count += 1
+            } else {
+                groupedIndices[key] = items.count
+                items.append(NotchSummaryItem(id: key, session: session, count: 1))
+            }
+        }
+
+        let prioritized = items.filter { $0.session.status.isActive }
+            + items.filter { !$0.session.status.isActive }
+        let selectedIDs = Set(prioritized.prefix(max(0, limit)).map(\.id))
+        // The icons live on the left wing. Active agents go last so they sit
+        // nearest the physical notch, while recent finished agents remain visible.
+        return items.filter { selectedIDs.contains($0.id) && !$0.session.status.isActive }
+            + items.filter { selectedIDs.contains($0.id) && $0.session.status.isActive }
+    }
+
+    private static func groupKey(for session: AgentSession) -> String? {
+        switch session.status {
+        case .done: "done"
+        case .needsInput: "needs-input"
+        case .cancelled, .failed: "stopped"
+        case .working, .waitingForSubagents, .stale: nil
+        }
+    }
+}
+
+enum NotchActivityLabel {
+    private static let labelLimit = 9
+
+    static func text(for activity: SessionActivity) -> String {
+        switch activity {
+        case .editing(let path):
+            let cleanPath = removingActionPrefix("Editing", from: path)
+            let file = URL(fileURLWithPath: cleanPath).lastPathComponent
+            return ongoingText(action: "Editing", value: file, fallback: "file")
+        case .running(let command):
+            let cleanCommand = removingActionPrefix("Running", from: command)
+            return ongoingText(action: "Running", value: cleanCommand, fallback: "command")
+        case .searching, .thinking, .waiting, .none:
+            return "Thinking..."
+        }
+    }
+
+    private static func ongoingText(action: String, value: String, fallback: String) -> String {
+        let clean = value
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let display = clean.isEmpty ? fallback : clean
+        return String("\(action) \(display)".prefix(labelLimit)) + "..."
+    }
+
+    private static func removingActionPrefix(_ action: String, from value: String) -> String {
+        let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = action + " "
+        guard clean.lowercased().hasPrefix(prefix.lowercased()) else { return clean }
+        return String(clean.dropFirst(prefix.count))
+    }
+}
+
+enum NotchActivityBadgeKind: Equatable {
+    case command
+    case editing
+
+    static func badge(for activity: SessionActivity) -> Self? {
+        switch activity {
+        case .running: .command
+        case .editing: .editing
+        case .searching, .thinking, .waiting, .none: nil
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .command: "terminal.fill"
+        case .editing: "pencil"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .command: "Running command"
+        case .editing: "Editing file"
+        }
+    }
+}
+
 struct AgentPanelView: View {
     @ObservedObject var monitor: SessionMonitor
     @ObservedObject var preferences: Preferences
@@ -95,17 +200,37 @@ struct AgentPanelView: View {
         return HStack(spacing: 0) {
             HStack(spacing: 8) {
                 HStack(spacing: 4) {
-                    ForEach(notchSummarySessions) { session in
-                        ProviderMark(
-                            provider: session.provider,
-                            size: 23,
-                            state: preferences.notchLayout == .compact ? markState(for: session.status) : .active
-                        )
+                    ForEach(notchSummaryItems) { item in
+                        ZStack(alignment: .topTrailing) {
+                            ProviderMark(
+                                provider: item.session.provider,
+                                size: 23,
+                                state: preferences.notchLayout == .compact || item.count > 1
+                                    ? markState(for: item.session.status)
+                                    : .active,
+                                motion: markMotion(for: item.session)
+                            )
+                            if preferences.notchLayout == .compact,
+                               let badge = NotchActivityBadgeKind.badge(for: item.session.activity) {
+                                NotchActivityBadge(kind: badge, size: 15)
+                                    .offset(x: 2, y: -2)
+                            } else if item.count > 1 {
+                                NotchStackBadge(count: item.count)
+                                    .offset(x: 4, y: -4)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(notchSummaryAccessibilityLabel(for: item))
                     }
                 }
+                .animation(
+                    reduceMotion ? nil : .easeInOut(duration: 0.34),
+                    value: notchSummaryItems.map { "\($0.id):\($0.count):\($0.session.status.rawValue)" }
+                )
                 if preferences.notchLayout == .detailed, !activelyRunningSessions.isEmpty {
-                    Text("Working…")
+                    Text(detailedNotchActivityText)
                         .font(.system(size: 12.1, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
                 }
             }
             .padding(.leading, 12)
@@ -250,9 +375,27 @@ struct AgentPanelView: View {
         monitor.visibleSessions.filter { $0.status == .working || $0.status == .waitingForSubagents }
     }
 
-    private var notchSummarySessions: [AgentSession] {
-        let sessions = activelyRunningSessions.isEmpty ? monitor.visibleSessions : activelyRunningSessions
-        return Array(sessions.prefix(4))
+    private var notchSummaryItems: [NotchSummaryItem] {
+        NotchSummaryBuilder.items(from: monitor.visibleSessions)
+    }
+
+    private var detailedNotchActivityText: String {
+        guard let session = activelyRunningSessions.first else { return "Thinking..." }
+        return NotchActivityLabel.text(for: session.activity)
+    }
+
+    private func notchSummaryAccessibilityLabel(for item: NotchSummaryItem) -> String {
+        let state = switch item.session.status {
+        case .working: "working"
+        case .waitingForSubagents: "waiting for subagents"
+        case .needsInput: "needing input"
+        case .done: "done"
+        case .cancelled, .failed: "stopped"
+        case .stale: "disconnected"
+        }
+        return item.count == 1
+            ? "\(item.session.provider.displayName) agent, \(state)"
+            : "\(item.count) \(item.session.provider.displayName) agents, \(state)"
     }
 
     private var collapsedSessionCount: Int {
@@ -284,9 +427,10 @@ struct AgentPanelView: View {
     }
 
     private var collapsedLeftWingWidth: CGFloat {
-        let icons = CGFloat(notchSummarySessions.count) * 27
+        let icons = CGFloat(notchSummaryItems.count) * 27
         if preferences.notchLayout == .compact { return max(50, 16 + icons) }
-        return max(120, 88 + icons)
+        let activityText = CGFloat(detailedNotchActivityText.count) * 6.5
+        return max(120, 32 + icons + activityText)
     }
 
     private var collapsedRightWingWidth: CGFloat { 28 }
@@ -380,6 +524,15 @@ struct AgentPanelView: View {
         case .done: .done
         case .cancelled, .failed: .stopped
         case .stale: .inactive
+        }
+    }
+
+    private func markMotion(for session: AgentSession) -> ProviderMarkMotion {
+        guard session.status == .working || session.status == .waitingForSubagents else { return .none }
+        switch session.activity {
+        case .editing: return .editing
+        case .running, .searching: return .command
+        case .thinking, .waiting, .none: return .thinking
         }
     }
 
@@ -640,7 +793,9 @@ private struct AgentQuestionCard: View {
 
     private func accept(_ answer: String) {
         var updated = answers
-        updated[question.header] = answer
+        // AskUserQuestion's hook contract keys answers by the full question
+        // text, not the short display header.
+        updated[question.prompt] = answer
         advance(with: updated)
     }
 
@@ -653,7 +808,7 @@ private struct AgentQuestionCard: View {
     private func submitMultiple() {
         guard !selections.isEmpty else { return }
         var updated = answers
-        updated[question.header] = selections.sorted().joined(separator: ", ")
+        updated[question.prompt] = selections.sorted().joined(separator: ", ")
         advance(with: updated)
     }
 
@@ -805,11 +960,18 @@ private struct SessionRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            ProviderMark(
-                provider: session.provider,
-                size: compact ? 19 : 21,
-                state: tintLogoForStatus ? markState : .active
-            )
+            ZStack(alignment: .topTrailing) {
+                ProviderMark(
+                    provider: session.provider,
+                    size: compact ? 19 : 21,
+                    state: tintLogoForStatus ? markState : .active,
+                    motion: markMotion
+                )
+                if hideActivity, let badge = NotchActivityBadgeKind.badge(for: session.activity) {
+                    NotchActivityBadge(kind: badge, size: 14)
+                        .offset(x: 2, y: -2)
+                }
+            }
             .padding(.top, 1)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -843,6 +1005,7 @@ private struct SessionRow: View {
         .background(hideActivity && darkSurface ? Color.white.opacity(0.055) : rowTint, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .contentShape(Rectangle()).onTapGesture { monitor.open(session) }
         .onHover { isHovering in withAnimation(.easeOut(duration: 0.14)) { hovering = isHovering } }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.34), value: session.status)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(session.provider.displayName), \(primaryText(now: .now)), \(session.activity.detail ?? "")")
     }
@@ -885,6 +1048,14 @@ private struct SessionRow: View {
         case .stale: .inactive
         }
     }
+    private var markMotion: ProviderMarkMotion {
+        guard session.status == .working || session.status == .waitingForSubagents else { return .none }
+        switch session.activity {
+        case .editing: return .editing
+        case .running, .searching: return .command
+        case .thinking, .waiting, .none: return .thinking
+        }
+    }
     private var rowTint: Color {
         if darkSurface {
             switch session.status {
@@ -913,7 +1084,7 @@ private struct SessionRow: View {
     }
 }
 
-private enum ProviderMarkState {
+private enum ProviderMarkState: Equatable {
     case active, inactive, stopped, needsInput, done
 
     var saturation: Double {
@@ -934,6 +1105,33 @@ private enum ProviderMarkState {
         case .done: Color(red: 0.48, green: 1.0, blue: 0.58)
         }
     }
+}
+
+private enum ProviderMarkMotion: Equatable {
+    case none, thinking, command, editing
+
+    var trailColors: [Color] {
+        switch self {
+        case .none: Array(repeating: .clear, count: 9)
+        case .thinking: [
+            .pink, .purple, .indigo, .blue, .cyan, .green, .yellow, .orange, .red
+        ]
+        case .command: [
+            .white, Color(red: 0.84, green: 0.66, blue: 1.0),
+            Color(red: 0.72, green: 0.45, blue: 1.0), .purple,
+            Color(red: 0.55, green: 0.25, blue: 0.95), .indigo,
+            Color(red: 0.48, green: 0.20, blue: 0.86), .purple, Color.purple.opacity(0.72)
+        ]
+        case .editing: [
+            .white, Color.cyan.opacity(0.95), .cyan,
+            Color(red: 0.20, green: 0.65, blue: 1.0),
+            Color(red: 0.16, green: 0.52, blue: 1.0), .blue,
+            Color(red: 0.20, green: 0.34, blue: 0.95), .indigo, Color.indigo.opacity(0.72)
+        ]
+        }
+    }
+
+    static let lapDuration: TimeInterval = 1.9
 }
 
 @MainActor
@@ -966,14 +1164,46 @@ private struct ProviderMark: View {
     let provider: AgentProvider
     var size: CGFloat = 21
     var state: ProviderMarkState = .active
+    var motion: ProviderMarkMotion = .none
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        Image(nsImage: appIcon)
-            .resizable().scaledToFit().frame(width: size, height: size)
-            .saturation(state.saturation)
-            .colorMultiply(state.color)
-            .opacity(state.opacity)
-            .clipShape(RoundedRectangle(cornerRadius: max(4, size * 0.24), style: .continuous))
-            .accessibilityLabel(provider.displayName)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion || motion == .none)) { timeline in
+            ZStack {
+                let iconCornerRadius = max(4, size * 0.24)
+                let cornerRadius = iconCornerRadius + 1
+                let side = size + 2
+                let perimeter = max(1, 4 * (side - 2 * cornerRadius) + 2 * .pi * cornerRadius)
+                let progress = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: ProviderMarkMotion.lapDuration) / ProviderMarkMotion.lapDuration
+                let dashLength = max(3.5, size * 0.22)
+                ForEach(Array(motion.trailColors.enumerated()), id: \.offset) { index, color in
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(
+                            color.opacity(1 - Double(index) * 0.075),
+                            style: StrokeStyle(
+                                lineWidth: max(1.65, size * 0.085),
+                                lineCap: .round,
+                                lineJoin: .round,
+                                dash: [dashLength, max(1, perimeter - dashLength)],
+                                dashPhase: -perimeter * progress + CGFloat(index) * dashLength * 0.80
+                            )
+                        )
+                        .opacity(motion == .none ? 0 : 1)
+                        .animation(.easeInOut(duration: 0.34), value: motion)
+                }
+
+                Image(nsImage: appIcon)
+                    .resizable().scaledToFit().frame(width: size, height: size)
+                    .saturation(state.saturation)
+                    .colorMultiply(state.color)
+                    .opacity(state.opacity)
+                    .clipShape(RoundedRectangle(cornerRadius: iconCornerRadius, style: .continuous))
+                    .animation(.easeInOut(duration: 0.34), value: state)
+            }
+            .frame(width: size + 2, height: size + 2)
+        }
+        .accessibilityLabel(provider.displayName)
     }
 
     private var appIcon: NSImage { ProviderIconStore.shared.image(for: provider) }
@@ -992,6 +1222,38 @@ private struct SubagentBadge: View {
         .padding(.horizontal, 6).padding(.vertical, 3)
         .background(Color.purple.opacity(0.16), in: RoundedRectangle(cornerRadius: 5))
         .accessibilityLabel("\(count) subagents")
+    }
+}
+
+private struct NotchStackBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text(count > 99 ? "99+" : "\(count)")
+            .font(.system(size: count > 9 ? 7 : 8, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, count > 9 ? 3 : 0)
+            .frame(minWidth: 13, minHeight: 13)
+            .background(Color.black, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.92), lineWidth: 1))
+            .accessibilityHidden(true)
+    }
+}
+
+private struct NotchActivityBadge: View {
+    let kind: NotchActivityBadgeKind
+    var size: CGFloat = 12
+
+    var body: some View {
+        Image(systemName: kind.systemImage)
+            .font(.system(size: size * 0.52, weight: .black))
+            .foregroundStyle(Color.black)
+            .frame(width: size, height: size)
+            .background(Color.white, in: Circle())
+            .overlay(Circle().strokeBorder(Color.black.opacity(0.9), lineWidth: 1))
+            .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+            .accessibilityHidden(true)
     }
 }
 

@@ -63,12 +63,17 @@ private final class SessionScanner: @unchecked Sendable {
                     includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
                     options: [.skipsHiddenFiles, .skipsPackageDescendants]
                 ) else { continue }
-                var discovered: [URL] = []
+                var discovered: [(url: URL, modified: Date)] = []
                 for case let file as URL in enumerator where file.pathExtension == "jsonl" {
-                    discovered.append(file)
-                    if discovered.count >= 160 { break }
+                    // Enumeration order is unrelated to activity and can put a
+                    // live transcript hundreds of entries past the scan cap.
+                    // Claude subagent transcripts are ignored by the parser, so
+                    // exclude them before selecting the newest real sessions.
+                    if provider == .claude, file.path.contains("/subagents/") { continue }
+                    let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                    discovered.append((file, modified))
                 }
-                files = discovered
+                files = discovered.sorted { $0.modified > $1.modified }.prefix(160).map(\.url)
             }
             for file in files {
                 guard file.pathExtension == "jsonl" else { continue }
@@ -215,7 +220,23 @@ final class SessionMonitor: ObservableObject {
     init(preferences: Preferences = .shared) { self.preferences = preferences }
 
     var visibleSessions: [AgentSession] {
-        sessions.filter { !preferences.hiddenIDs.contains($0.id) && !preferences.dismissedIDs.contains($0.id) }
+        Self.sessionsForDisplay(
+            sessions,
+            hiddenIDs: preferences.hiddenIDs,
+            dismissedIDs: preferences.dismissedIDs
+        )
+    }
+
+    nonisolated static func sessionsForDisplay(
+        _ sessions: [AgentSession],
+        hiddenIDs: Set<String> = [],
+        dismissedIDs: Set<String> = []
+    ) -> [AgentSession] {
+        let visible = sessions.filter { !hiddenIDs.contains($0.id) && !dismissedIDs.contains($0.id) }
+        let runningCount = visible.filter {
+            $0.status == .working || $0.status == .waitingForSubagents
+        }.count
+        return runningCount >= 3 ? visible.filter(\.status.isActive) : visible
     }
 
     var hiddenSessions: [AgentSession] { sessions.filter { preferences.hiddenIDs.contains($0.id) } }
@@ -391,28 +412,32 @@ final class SessionMonitor: ObservableObject {
             health[index].lastError = errors[provider]
         }
         if didReceiveNewWork && preferences.alwaysShowPIPOnAgentStart { manuallyHidden = false; panelVisible = true }
-        if visibleSessions.isEmpty { panelVisible = false }
     }
 
     func hidePanel() { manuallyHidden = true; panelVisible = false }
-    func showPanel() { manuallyHidden = false; panelVisible = !visibleSessions.isEmpty }
+    func showPanel() { manuallyHidden = false; panelVisible = true }
     func showForQuestion() { manuallyHidden = false; panelVisible = true }
     func togglePanel() { panelVisible ? hidePanel() : showPanel() }
 
     func open(_ session: AgentSession) {
         if session.provider == .codex,
-           let url = URL(string: "codex://threads/\(session.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? session.id)") {
-            openAndActivate(url)
+           let targetID = (session.openTargetID ?? session.id).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+           let url = URL(string: "codex://threads/\(targetID)") {
+            _ = activateWithAppleScript(provider: .codex)
+            openAndActivate(url, fallbackProvider: .codex)
+            reinforceAppleScriptActivation(for: .codex)
             return
         }
         if session.provider == .claude {
-            _ = activateApplication(for: .claude)
+            if !activateWithAppleScript(provider: .claude) { _ = openClaudeDesktop() }
+            reinforceAppleScriptActivation(for: .claude)
             return
         }
         if [.antigravity, .cursor].contains(session.provider), FileManager.default.fileExists(atPath: session.projectPath) {
             let scheme = session.provider == .antigravity ? "antigravity" : "cursor"
             if let url = URL(string: "\(scheme)://file\(session.projectPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? session.projectPath)") {
-                openAndActivate(url); return
+                _ = activateRunningApplication(for: session.provider)
+                openAndActivate(url, fallbackProvider: session.provider); return
             }
         }
         if activateApplication(for: session.provider) { return }
@@ -429,15 +454,18 @@ final class SessionMonitor: ObservableObject {
         }
     }
 
-    private func openAndActivate(_ url: URL) {
+    private func openAndActivate(_ url: URL, fallbackProvider: AgentProvider) {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         NSWorkspace.shared.open(url, configuration: configuration) { application, _ in
-            Task { @MainActor in self.confirmActivation(of: application) }
+            Task { @MainActor in
+                self.confirmActivation(of: application ?? self.runningApplication(for: fallbackProvider))
+            }
         }
     }
 
     private func activateApplication(for provider: AgentProvider) -> Bool {
+        if activateRunningApplication(for: provider) { return true }
         for bundleID in provider.bundleIdentifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { continue }
             let configuration = NSWorkspace.OpenConfiguration()
@@ -448,6 +476,49 @@ final class SessionMonitor: ObservableObject {
             return true
         }
         return false
+    }
+
+    private func openClaudeDesktop() -> Bool {
+        let installedURL = URL(fileURLWithPath: "/Applications/Claude.app")
+        let applicationURL = FileManager.default.fileExists(atPath: installedURL.path)
+            ? installedURL
+            : NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.anthropic.claudefordesktop")
+        guard let applicationURL else { return false }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration) { application, _ in
+            Task { @MainActor in self.confirmActivation(of: application) }
+        }
+        return true
+    }
+
+    private func activateWithAppleScript(provider: AgentProvider) -> Bool {
+        guard let bundleID = provider.bundleIdentifiers.first(where: {
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
+        }) else { return false }
+        var error: NSDictionary?
+        NSAppleScript(source: "tell application id \"\(bundleID)\" to activate")?
+            .executeAndReturnError(&error)
+        return error == nil
+    }
+
+    private func reinforceAppleScriptActivation(for provider: AgentProvider) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
+            _ = self?.activateWithAppleScript(provider: provider)
+        }
+    }
+
+    private func activateRunningApplication(for provider: AgentProvider) -> Bool {
+        guard let application = runningApplication(for: provider) else { return false }
+        application.activate(options: [.activateAllWindows])
+        confirmActivation(of: application)
+        return true
+    }
+
+    private func runningApplication(for provider: AgentProvider) -> NSRunningApplication? {
+        provider.bundleIdentifiers.lazy
+            .flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0) }
+            .first(where: { !$0.isTerminated })
     }
 
     private func confirmActivation(of application: NSRunningApplication?) {

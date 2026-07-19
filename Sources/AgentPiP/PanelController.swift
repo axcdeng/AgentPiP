@@ -32,6 +32,8 @@ private final class AgentPiPPanel: NSPanel {
 
 private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var needsPanelToBecomeKey: Bool { true }
+    override var acceptsFirstResponder: Bool { true }
 }
 
 private final class PanelResizeHandle: NSView {
@@ -132,7 +134,7 @@ final class PanelController: NSObject, NSWindowDelegate {
                 : NSSize(width: 300, height: 76)
             panel.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         }
-        if monitor.panelVisible && (!monitor.visibleSessions.isEmpty || !questionBridge.requests.isEmpty) {
+        if monitor.panelVisible {
             resizeToContent()
             if preferences.displayMode == .pip { ensureOnScreen() }
             panel.orderFrontRegardless()
